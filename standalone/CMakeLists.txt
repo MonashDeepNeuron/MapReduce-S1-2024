@@ -18,12 +18,19 @@ CPMAddPackage(
 
 CPMAddPackage(NAME MDN-MapReduce SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/..)
 
+find_package(MPI REQUIRED)
+
+# Set Compiler flags
+set(CMAKE_CXX_STANDARD 20)
+
+set(GCC_COVERAGE_COMPILE_FLAGS "-Wall -pedantic -lm -O3 -fopenmp")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GCC_COVERAGE_COMPILE_FLAGS}")
 # ---- Create standalone executable ----
 
 file(GLOB sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp)
 
 add_executable(${PROJECT_NAME} ${sources})
 
-set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 17 OUTPUT_NAME "MDN-MapReduce")
+set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 20 OUTPUT_NAME "MDN-MapReduce")
 
-target_link_libraries(${PROJECT_NAME} MDN-MapReduce::MDN-MapReduce cxxopts)
+target_link_libraries(${PROJECT_NAME} MDN-MapReduce::MDN-MapReduce cxxopts MPI::MPI_CXX)
