@@ -24,17 +24,19 @@ int main(int argc, char* argv[]){
     int dest = 1;
     int tag = 0;
     int count = 1;
+    for(int i = 1; i < num_processes; i++)
+    {
+      MPI_Send(&i, count, MPI_INT, i, tag, MPI_COMM_WORLD);
+      printf("Process %d: Sent %d to process %d \n", my_rank, i, dest);
+    }
 
-    MPI_Send(&my_rank, count, MPI_INT, dest, tag, MPI_COMM_WORLD);
-
-    printf("Process %d: Sent my_rank to process %d \n", my_rank, dest);
   }
   else
   {
     int tag = 0;
     int count = 1;
     int buffer;
-    MPI_Recv(&buffer, count, MPI_INT, MASTER, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(&buffer, count, MPI_INT, MASTER, MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     printf("Process %d: Received %d from process %d \n", my_rank, buffer, MASTER);
   }
 
