@@ -68,18 +68,19 @@ template <typename T, typename K, typename V>
 void concurrent_map(const vector<T>& things,
                    vector<vector<bucket<K, V>>>& map_pools,
                    std::function<uint(K)> key_hash,
-                   std::function<void(const T, vector<bucket<K, V>>, std::function<uint(K)>)> map_func,
+                   std::function<void(const T, vector<bucket<K, V>>& , std::function<uint(K)>)> map_func,
                    const uint nthreads)
 {
     // 1 vector for each thread, with 1 bucket to map into for each thread, and each bucket has many Key-Value pairs, with each Key being in exactly 1 bucket. trust me
     // We define buckets for each map operation to group keys for the reduce operation
     // Technically we should preallocate most of this but whatever??
     // Map input globs T, into vectors of Key Value pairs
-    #pragma omp parallel for num_threads(nthreads)
+    // #pragma omp parallel for num_threads(nthreads)
     for(int j = 0 ; j < things.size(); j++){
-        vector<bucket<K, V>> thread_buckets = map_pools.at(j % map_pools.size());
+        int buckets_index = j % map_pools.size();
         // Hash to place all occurences of a key within the same bucket index
-        map_func(things.at(j), thread_buckets, key_hash);
+        std::cout << "input " <<  things.at(j) << std::endl;
+        map_func(things.at(j), map_pools.at(buckets_index), key_hash);
         // for(const auto kv : results){
         //     uint index = key_hash(kv.first()) % nthreads;
         //     thread_buckets.at(index).push_back(kv);
@@ -95,7 +96,7 @@ vector<std::unordered_map<K, V>> concurrent_reduce(vector<vector<bucket<K, V>>> 
 {
     // Each thread produces an unordered_map of unique keys with the values being the result of reducing all values with that key
     vector<std::unordered_map<K, V>> reduce_pools(pile_of_kv.size());
-    #pragma omp parallel for num_threads(nthreads)
+    // #pragma omp parallel for num_threads(nthreads)
     for(auto i = 0; i < pile_of_kv.size(); i++){
         reduce_pools.at(i) = do_reduce(pile_of_kv.at(i), identity, reduce_func);
     }
@@ -105,7 +106,7 @@ vector<std::unordered_map<K, V>> concurrent_reduce(vector<vector<bucket<K, V>>> 
 template <typename T, typename K, typename V>
 std::unordered_map<K, V> map_reduce(const vector<T> &things,
                                     std::function<uint(K)> key_hash,
-                                    std::function<void(T, vector<bucket<K, V>>, std::function<uint(K)>)> map_func,
+                                    std::function<void(T, vector<bucket<K, V>>& , std::function<uint(K)>)> map_func,
                                     std::function<key_value<K,V>(const key_value<K, V>, const key_value<K, V>)> reduce_func,
                                     const V identity,
                                     const uint nthreads)
@@ -142,9 +143,13 @@ std::unordered_map<K, V> map_reduce(const vector<T> &things,
     return results;
 }
 
-void map_func_add(const int x, vector<bucket<int, int>> buckets, std::function<uint(int)> key_hash){
+void map_func_add(const int x, vector<bucket<int, int>>& buckets, std::function<uint(int)> key_hash){
+    std::cout << "x is " << x << std::endl;
     std::pair<int, int> kv = {x, 1};
-    buckets.at(key_hash(kv.first % buckets.size())).push_back(kv);
+    int index = key_hash(kv.first % buckets.size());
+    std::cout << "bucket size is " << buckets.at(index).size() << std::endl;
+    buckets.at(index).push_back(kv);
+    std::cout << "bucket size is now " << buckets.at(index).size() << std::endl;
 }
 
 std::pair<int, int> reduce_func_add(const std::pair<int, int>  x, const std::pair<int, int> y){
@@ -159,8 +164,8 @@ int main(int argv, char* argc[]){
     std::function<uint(int)> hash_func = [](int key){
         return (unsigned)std::hash<int>{}(key);
         };
-    vector<int> things = {1 , 2, 1};
-    std::function<void(int, vector<bucket<int, int>>, std::function<uint(int)>)>  map_func = map_func_add;
+    vector<int> things = {1 , 2, 3};
+    std::function<void(int, vector<bucket<int, int>>& , std::function<uint(int)>)>  map_func = map_func_add;
     std::function<key_value<int, int>(const key_value<int, int>, const key_value<int, int>)> reduce_func = reduce_func_add;
     std::unordered_map<int, int> results = map_reduce(things, hash_func, map_func, reduce_func, 0, nthreads);
     std::cout << results.size() << std::endl;
