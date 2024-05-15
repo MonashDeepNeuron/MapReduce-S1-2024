@@ -46,8 +46,8 @@ std::unordered_map<K, V> do_reduce(const vector<bucket<K, V>> &buckets,
     std::unordered_map<K, V> reduce_map = {};
     for(const auto bucket : buckets){
         for (const auto [key, value] : bucket){
-            if (reduce_map.find(key) != reduce_map.end()){
-                reduce_map.at(key) = identity;
+            if (reduce_map.find(key) == reduce_map.end()){
+                reduce_map[key] = identity;
             }
             key_value<K, V> existing = {key, reduce_map.at(key)};
             key_value<K, V> created = {key, value};
@@ -81,11 +81,11 @@ void concurrent_map(const vector<T>& things,
         // Hash to place all occurences of a key within the same bucket index
         std::cout << "input " <<  things.at(j) << std::endl;
         map_func(things.at(j), map_pools.at(buckets_index), key_hash);
-        // for(const auto kv : results){
-        //     uint index = key_hash(kv.first()) % nthreads;
-        //     thread_buckets.at(index).push_back(kv);
-        // }
     }    
+    for(auto bucket : map_pools.at(0)) {
+
+        std::cout << "Bucket of size " << bucket.size() << std::endl;
+    }
 }
 
 template <typename K, typename V>
@@ -125,9 +125,7 @@ std::unordered_map<K, V> map_reduce(const vector<T> &things,
     for (auto i = 0; i < map_result.size(); i++){
         for (auto j = 0; j < shuffled_result.size(); j++){
             // For the jth thread's vec, place the ith bucket into the ith shuffled_results to group keys
-            vector<bucket<K, V>> target = shuffled_result.at(i);
-            bucket<K, V> bucket_i = map_result.at(j).at(i);
-            target.push_back(bucket_i);
+            shuffled_result.at(i).push_back(map_result.at(j).at(i));
         }
     }
 
@@ -160,11 +158,11 @@ std::pair<int, int> reduce_func_add(const std::pair<int, int>  x, const std::pai
                   
 int main(int argv, char* argc[]){
     omp_set_dynamic(0);
-    uint nthreads = 1;
+    uint nthreads = 2;
     std::function<uint(int)> hash_func = [](int key){
         return (unsigned)std::hash<int>{}(key);
         };
-    vector<int> things = {1 , 2, 3};
+    vector<int> things = {1 , 2, 31 , 2, 31 , 2, 31 , 2, 31 , 2, 3};
     std::function<void(int, vector<bucket<int, int>>& , std::function<uint(int)>)>  map_func = map_func_add;
     std::function<key_value<int, int>(const key_value<int, int>, const key_value<int, int>)> reduce_func = reduce_func_add;
     std::unordered_map<int, int> results = map_reduce(things, hash_func, map_func, reduce_func, 0, nthreads);
