@@ -79,13 +79,8 @@ void concurrent_map(const vector<T>& things,
     for(int j = 0 ; j < things.size(); j++){
         int buckets_index = j % map_pools.size();
         // Hash to place all occurences of a key within the same bucket index
-        std::cout << "input " <<  things.at(j) << std::endl;
         map_func(things.at(j), map_pools.at(buckets_index), key_hash);
     }    
-    for(auto bucket : map_pools.at(0)) {
-
-        std::cout << "Bucket of size " << bucket.size() << std::endl;
-    }
 }
 
 template <typename K, typename V>
@@ -142,12 +137,9 @@ std::unordered_map<K, V> map_reduce(const vector<T> &things,
 }
 
 void map_func_add(const int x, vector<bucket<int, int>>& buckets, std::function<uint(int)> key_hash){
-    std::cout << "x is " << x << std::endl;
     std::pair<int, int> kv = {x, 1};
     int index = key_hash(kv.first % buckets.size());
-    std::cout << "bucket size is " << buckets.at(index).size() << std::endl;
     buckets.at(index).push_back(kv);
-    std::cout << "bucket size is now " << buckets.at(index).size() << std::endl;
 }
 
 std::pair<int, int> reduce_func_add(const std::pair<int, int>  x, const std::pair<int, int> y){
@@ -169,7 +161,7 @@ int main(int argv, char* argc[]){
     std::function<void(int, vector<bucket<int, int>>& , std::function<uint(int)>)>  map_func = map_func_add;
     std::function<key_value<int, int>(const key_value<int, int>, const key_value<int, int>)> reduce_func = reduce_func_add;
     std::unordered_map<int, int> results = map_reduce(another, hash_func, map_func, reduce_func, 0, nthreads);
-    std::cout << results.size() << std::endl;
+    std::cout << "Unique keys " << results.size() << std::endl;
     for(const auto [key, val] : results){
         std::cout << key << " " << val << std::endl;
     }
