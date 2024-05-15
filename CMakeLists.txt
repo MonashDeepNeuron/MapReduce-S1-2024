@@ -8,7 +8,7 @@ project(
   VERSION 0.1
   LANGUAGES CXX
 )
-
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # ---- Include guards ----
 
 if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
@@ -35,7 +35,15 @@ CPMAddPackage(
 
 # Dependencies find_required
 find_package(MPI REQUIRED)
+find_package(OpenMP)
 
+if(OPEN_MP_FOUND)
+   set (OpenMP_C_FLAGS -fopenmp)
+   set (OpenMP_CXX_FLAGS -fopenmp)
+   set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+   set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+   set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+endif()
 # ---- Add source files ----
 
 # Note: globbing sources is considered bad practice as CMake's generators may not detect new files
@@ -54,7 +62,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 17)
 target_compile_options(${PROJECT_NAME} PUBLIC "$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/permissive->")
 
 # Link dependencies
-target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt MPI::MPI_CXX)
+target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt MPI::MPI_CXX OpenMP::OpenMP_CXX)
 
 target_include_directories(
   ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>

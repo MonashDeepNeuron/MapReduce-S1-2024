@@ -1,6 +1,7 @@
+#include <omp.h>
 #include <vector>
 #include <functional>
-
+#include <iostream>
 
 template<typename K, typename V>
 using key_value = std::pair<K, V>;
@@ -40,18 +41,20 @@ takes the specific reduce function as a parameter
 template <typename K, typename V>
 std::unordered_map<K, V> do_reduce(const vector<bucket<K, V>> &buckets,
                                    const V identity,
-                                   std::function<key_value<K,V>(key_value<K, V>, key_value<K, V>)> reduce_func)
+                                   std::function<key_value<K,V>(const key_value<K, V>, const key_value<K, V>)> reduce_func)
 {
     std::unordered_map<K, V> reduce_map = {};
     for(const auto bucket : buckets){
         for (const auto [key, value] : bucket){
-            if (!reduce_map.contains(key)){
+            if (reduce_map.find(key) != reduce_map.end()){
                 reduce_map.at(key) = identity;
             }
-            reduce_map.at(key) = func(reduce_map.at(key), value);
+            key_value<K, V> existing = {key, reduce_map.at(key)};
+            key_value<K, V> created = {key, value};
+            key_value<K, V> pair  = reduce_func(existing, created);
+            reduce_map.at(key) = pair.second;
         }
     }
-
     return reduce_map;
 }
 
@@ -62,28 +65,26 @@ Perform the Map stage, take the source objects, and destructure it into Key Valu
  To support shuffling the Keys into the same bucket, we hash the keys and modulo over the thread size to map into a bucket
 */
 template <typename T, typename K, typename V>
-vector<vector<vector<key_value<K, V>>>> concurrent_map(const vector<T>& things,
-                                                       std::function<uint(K)> key_hash,
-                                                       std::function<vector<key_value<K, V>>(const T, std::function<uint(K)>)> map_func,
-                                                       const uint nthreads)
+void concurrent_map(const vector<T>& things,
+                   vector<vector<bucket<K, V>>>& map_pools,
+                   std::function<uint(K)> key_hash,
+                   std::function<void(const T, vector<bucket<K, V>>, std::function<uint(K)>)> map_func,
+                   const uint nthreads)
 {
     // 1 vector for each thread, with 1 bucket to map into for each thread, and each bucket has many Key-Value pairs, with each Key being in exactly 1 bucket. trust me
     // We define buckets for each map operation to group keys for the reduce operation
     // Technically we should preallocate most of this but whatever??
-    vector<vector<bucket<K, V>>> mapped_pools(nthreads, vector<vector<key_value<K, V>>>(nthreads));
     // Map input globs T, into vectors of Key Value pairs
     #pragma omp parallel for num_threads(nthreads)
     for(int j = 0 ; j < things.size(); j++){
-        vector<bucket<K, V>> thread_buckets = mapped_pools.at(j);
+        vector<bucket<K, V>> thread_buckets = map_pools.at(j);
         // Hash to place all occurences of a key within the same bucket index
-        vector<key_value<K, V>> results = map_func(things.at(j));
-        for(const auto kv : results){
-            uint index = key_hash(kv.first()) % nthreads;
-            thread_buckets.at(index).push_back(kv);
-        }
+        map_func(things.at(j), thread_buckets, key_hash);
+        // for(const auto kv : results){
+        //     uint index = key_hash(kv.first()) % nthreads;
+        //     thread_buckets.at(index).push_back(kv);
+        // }
     }    
-
-    return mapped_pools;
 }
 
 template <typename K, typename V>
@@ -96,7 +97,7 @@ vector<std::unordered_map<K, V>> concurrent_reduce(vector<vector<bucket<K, V>>> 
     vector<std::unordered_map<K, V>> reduce_pools(pile_of_kv.size());
     #pragma omp parallel for num_threads(nthreads)
     for(auto i = 0; i < pile_of_kv.size(); i++){
-        reduce_pools.at(i) = do_reduce(&pile_of_kv.at(i), identity, reduce_func);
+        reduce_pools.at(i) = do_reduce(pile_of_kv.at(i), identity, reduce_func);
     }
     return reduce_pools;
 }
@@ -104,7 +105,7 @@ vector<std::unordered_map<K, V>> concurrent_reduce(vector<vector<bucket<K, V>>> 
 template <typename T, typename K, typename V>
 std::unordered_map<K, V> map_reduce(const vector<T> &things,
                                     std::function<uint(K)> key_hash,
-                                    std::function<vector<vector<key_value<K, V>>>(const T, std::function<uint(K)>)> map_func,
+                                    std::function<void(T, vector<bucket<K, V>>, std::function<uint(K)>)> map_func,
                                     std::function<key_value<K,V>(const key_value<K, V>, const key_value<K, V>)> reduce_func,
                                     const V identity,
                                     const uint nthreads)
@@ -112,6 +113,7 @@ std::unordered_map<K, V> map_reduce(const vector<T> &things,
     vector<vector<bucket<K, V>>> map_result(nthreads,
                                             vector<bucket<K, V>>(nthreads,
                                                                  bucket<K, V>()));
+    concurrent_map(things, map_result, key_hash, map_func, nthreads);
     // Shuffle and reorder
     // Flatten the buckets created at the Map stage into a vector for each thread to reduce
     vector<vector<bucket<K, V>>> shuffled_result(nthreads,
@@ -135,16 +137,35 @@ std::unordered_map<K, V> map_reduce(const vector<T> &things,
     std::unordered_map<K, V> results = {};
     for (const auto& item : reduce_result){
         results.insert(item.begin(), item.end());
-        
     }
 
     return results;
 }
 
+void map_func_add(const int x, vector<bucket<int, int>> buckets, std::function<uint(int)> key_hash){
+    std::pair<int, int> kv = {x, 1};
+    buckets.at(key_hash(kv.first % buckets.size())).push_back(kv);
+}
+
+std::pair<int, int> reduce_func_add(const std::pair<int, int>  x, const std::pair<int, int> y){
+    std::pair<int, int> out = {x.first, x.second + y.second};
+
+    return out;
+}                        
+                  
 int main(int argv, char* argc[]){
+    omp_set_dynamic(0);
+    uint nthreads = 2;
+    std::function<uint(int)> hash_func = [](int key){
+        return (unsigned)std::hash<int>{}(key);
+        };
     vector<int> things = {1 , 2, 1};
-    auto map_func = [](int x){return std::pair(x, x);};
-    auto reduce_func = [](int x, int y){return x + y;};
-    std::unordered_map<int, int> results = map_reduce(things, std::hash<int>, , , , )
+    std::function<void(int, vector<bucket<int, int>>, std::function<uint(int)>)>  map_func = map_func_add;
+    std::function<key_value<int, int>(const key_value<int, int>, const key_value<int, int>)> reduce_func = reduce_func_add;
+    std::unordered_map<int, int> results = map_reduce(things, hash_func, map_func, reduce_func, 0, nthreads);
+    std::cout << results.size() << std::endl;
+    for(const auto [key, val] : results){
+        std::cout << key << " " << val << std::endl;
+    }
     return 0;
 }
