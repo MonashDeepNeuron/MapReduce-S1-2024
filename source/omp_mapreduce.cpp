@@ -77,7 +77,7 @@ void concurrent_map(const vector<T>& things,
     // Map input globs T, into vectors of Key Value pairs
     #pragma omp parallel for num_threads(nthreads)
     for(int j = 0 ; j < things.size(); j++){
-        vector<bucket<K, V>> thread_buckets = map_pools.at(j);
+        vector<bucket<K, V>> thread_buckets = map_pools.at(j % map_pools.size());
         // Hash to place all occurences of a key within the same bucket index
         map_func(things.at(j), thread_buckets, key_hash);
         // for(const auto kv : results){
@@ -155,7 +155,7 @@ std::pair<int, int> reduce_func_add(const std::pair<int, int>  x, const std::pai
                   
 int main(int argv, char* argc[]){
     omp_set_dynamic(0);
-    uint nthreads = 2;
+    uint nthreads = 1;
     std::function<uint(int)> hash_func = [](int key){
         return (unsigned)std::hash<int>{}(key);
         };
