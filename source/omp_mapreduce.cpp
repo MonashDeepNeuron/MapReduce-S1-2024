@@ -1,4 +1,5 @@
 #include <omp.h>
+#include <chrono>
 #include <vector>
 #include <functional>
 #include <iostream>
@@ -76,12 +77,18 @@ void concurrent_map(const vector<T>& things,
     // We define buckets for each map operation to group keys for the reduce operation
     // Technically we should preallocate most of this but whatever??
     // Map input globs T, into vectors of Key Value pairs
-    // #pragma omp parallel for num_threads(nthreads)
-    for(int j = 0 ; j < things.size(); j++){
-        int buckets_index = j % map_pools.size();
+    // 0..size//nthreads
+    int section_size = things.size()/nthreads + 1;
+    #pragma omp parallel for num_threads(nthreads)
+    for(int thread_index = 0; thread_index < nthreads; thread_index ++)
+        for(int j = 0 ; j < section_size; j++){
+        int things_index = thread_index*section_size + j;
+        if (things_index >= things.size()){
+            break;
+        }
         // Hash to place all occurences of a key within the same bucket index
-        map_func(things.at(j), map_pools.at(buckets_index), key_hash);
-    }    
+        map_func(things.at(things_index), map_pools.at(thread_index), key_hash);
+        }    
 }
 
 template <typename K, typename V>
@@ -92,7 +99,7 @@ vector<std::unordered_map<K, V>> concurrent_reduce(vector<vector<bucket<K, V>>> 
 {
     // Each thread produces an unordered_map of unique keys with the values being the result of reducing all values with that key
     vector<std::unordered_map<K, V>> reduce_pools(pile_of_kv.size());
-    // #pragma omp parallel for num_threads(nthreads)
+    #pragma omp parallel for num_threads(nthreads)
     for(auto i = 0; i < pile_of_kv.size(); i++){
         reduce_pools.at(i) = do_reduce(pile_of_kv.at(i), identity, reduce_func);
     }
@@ -161,7 +168,7 @@ std::pair<std::string, int> reduce_func_add(const std::pair<std::string, int>  x
 
 int main(int argv, char* argc[]){
     omp_set_dynamic(0);
-    uint nthreads = 4;
+    uint nthreads = atoi(argc[1]);
     // Open the file
     std::ifstream file(argc[2]);
 
@@ -190,10 +197,14 @@ int main(int argv, char* argc[]){
     // std::function<key_value<int, int>(const key_value<int, int>, const key_value<int, int>)> reduce_func = reduce_func_add;
     std::function<void(std::string, vector<bucket<std::string, int>>& , std::function<uint(std::string)>)>  map_func = map_func_add;
     std::function<key_value<std::string, int>(const key_value<std::string, int>, const key_value<std::string, int>)> reduce_func = reduce_func_add;
+    auto clock = std::chrono::high_resolution_clock();
+    auto start = clock.now();
     std::unordered_map<std::string, int> results = map_reduce(words, hash_func, map_func, reduce_func, 0, nthreads);
+    auto end = clock.now();
     std::cout << "Unique keys " << results.size() << std::endl;
     for(const auto [key, val] : results){
         std::cout << key << " " << val << std::endl;
     }
+    std::cerr << "Time elapsed: " << (end - start).count() << std::endl;
     return 0;
 }
