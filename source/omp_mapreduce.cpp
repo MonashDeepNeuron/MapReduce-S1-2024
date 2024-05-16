@@ -28,13 +28,6 @@ template <typename T, typename A> struct map_argument {
 Consider an example of word count, T is a file as a string, K is a word string and V is the count
 The implementation of this depends on the problem we wish to solve. Maybe not templated TBH.
 */
-template <typename T, typename K, typename V> vector<key_value<K, V>> do_map(const T thing){
-    // for(int i = arg.from; i < arg.to; i++){
-        // arg.results[i] = arg.func(arg.things[i]);
-    // }
-    
-    return NULL;
-}
 
 /*
 A local function for a worker to reduce the elements in the input vector with duplicate keys into a single Key and reduced Value,
