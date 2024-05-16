@@ -166,7 +166,7 @@ std::pair<std::string, int> reduce_func_add(const std::pair<std::string, int>  x
     return {x.first, x.second + y.second};
 }              
 
-int main(int argv, char* argc[]){
+int add_main(int argv, char* argc[]){
     omp_set_dynamic(0);
     uint nthreads = atoi(argc[1]);
     // Open the file
@@ -207,4 +207,52 @@ int main(int argv, char* argc[]){
     }
     std::cerr << "Time elapsed: " << (end - start).count() << std::endl;
     return 0;
+}
+
+void map_func_wc(const std::string file_name, vector<bucket<std::string, int>>& buckets, std::function<uint(std::string)> key_hash){
+    std::ifstream file(file_name);
+
+    
+    // Read the file word by word
+    std::string word;
+    while (file >> word) {
+        std::pair<std::string, int> kv = {word, 1};
+        // Place the key-value into a bucket depending on the key's hash to group keys later
+        int index = key_hash(kv.first)% buckets.size();
+        buckets.at(index).push_back(kv);
+    }
+    
+    // Close the file
+    file.close();
+}
+
+
+int wc_main(int argv, char* argc[]){
+    omp_set_dynamic(0);
+    uint nthreads = atoi(argc[1]);
+    vector<std::string> input_filenames;
+    for(int i = 2; i < argv; i++){
+        std::string name = std::string(argc[i]);
+        input_filenames.push_back(name);
+    }
+    
+    std::function<uint(std::string)> hash_func = [](std::string key){
+        return (unsigned)std::hash<std::string>{}(key);
+        };
+    std::function<void(std::string, vector<bucket<std::string, int>>& , std::function<uint(std::string)>)>  map_func = map_func_wc;
+    std::function<key_value<std::string, int>(const key_value<std::string, int>, const key_value<std::string, int>)> reduce_func = reduce_func_add;
+    auto clock = std::chrono::high_resolution_clock();
+    auto start = clock.now();
+    std::unordered_map<std::string, int> results = map_reduce(input_filenames, hash_func, map_func, reduce_func, 0, nthreads);
+    auto end = clock.now();
+    std::cout << "Unique keys " << results.size() << std::endl;
+    for(const auto [key, val] : results){
+        std::cout << key << " " << val << std::endl;
+    }
+    std::cerr << "Time elapsed: " << (end - start).count() << std::endl;
+    return 0;
+}
+
+int main(int argv, char* argc[]){
+    return wc_main(argv, argc);
 }
