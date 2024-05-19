@@ -9,6 +9,9 @@ project(
   LANGUAGES CXX
 )
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_CXX_STANDARD 20)
+
+set(GCC_COVERAGE_COMPILE_FLAGS "-Wall -pedantic -lm -O3 -fopenmp")
 # ---- Include guards ----
 
 if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
@@ -34,7 +37,7 @@ CPMAddPackage(
 )
 
 # Dependencies find_required
-find_package(MPI REQUIRED)
+# find_package(MPI REQUIRED)
 find_package(OpenMP)
 
 if(OPEN_MP_FOUND)

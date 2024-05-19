@@ -18,7 +18,7 @@ CPMAddPackage(
 
 CPMAddPackage(NAME MDN-MapReduce SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/..)
 
-find_package(MPI REQUIRED)
+# find_package(MPI REQUIRED)
 
 # Set Compiler flags
 set(CMAKE_CXX_STANDARD 20)
@@ -33,4 +33,4 @@ add_executable(${PROJECT_NAME} ${sources})
 
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 20 OUTPUT_NAME "MDN-MapReduce")
 
-target_link_libraries(${PROJECT_NAME} MDN-MapReduce::MDN-MapReduce cxxopts MPI::MPI_CXX)
+target_link_libraries(${PROJECT_NAME} MDN-MapReduce::MDN-MapReduce cxxopts)
