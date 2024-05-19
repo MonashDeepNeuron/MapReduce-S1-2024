@@ -40,8 +40,8 @@ std::unordered_map<K, V> do_reduce(const vector<bucket<K, V>> &buckets,
                                    std::function<key_value<K,V>(const key_value<K, V>, const key_value<K, V>)> reduce_func)
 {
     std::unordered_map<K, V> reduce_map = {};
-    for(const auto bucket : buckets){
-        for (const auto [key, value] : bucket){
+    for(const auto& bucket : buckets){
+        for (const auto& [key, value] : bucket){
             if (reduce_map.find(key) == reduce_map.end()){
                 reduce_map[key] = identity;
             }
@@ -72,11 +72,11 @@ void concurrent_map(const vector<T>& things,
     // Technically we should preallocate most of this but whatever??
     // Map input globs T, into vectors of Key Value pairs
     // 0..size//nthreads
-    int section_size = things.size()/nthreads + 1;
+    uint section_size = things.size()/nthreads + 1;
     #pragma omp parallel for num_threads(nthreads)
-    for(int thread_index = 0; thread_index < nthreads; thread_index ++)
-        for(int j = 0 ; j < section_size; j++){
-        int things_index = thread_index*section_size + j;
+    for(uint thread_index = 0; thread_index < nthreads; thread_index ++)
+        for(uint j = 0 ; j < section_size; j++){
+        const uint things_index = thread_index*section_size + j;
         if (things_index >= things.size()){
             break;
         }
@@ -94,7 +94,7 @@ vector<std::unordered_map<K, V>> concurrent_reduce(vector<vector<bucket<K, V>>> 
     // Each thread produces an unordered_map of unique keys with the values being the result of reducing all values with that key
     vector<std::unordered_map<K, V>> reduce_pools(pile_of_kv.size());
     #pragma omp parallel for num_threads(nthreads)
-    for(auto i = 0; i < pile_of_kv.size(); i++){
+    for(uint i = 0; i < pile_of_kv.size(); i++){
         reduce_pools.at(i) = do_reduce(pile_of_kv.at(i), identity, reduce_func);
     }
     return reduce_pools;
@@ -119,8 +119,8 @@ std::unordered_map<K, V> map_reduce(const vector<T> &things,
     // Flatten map_result by taking all K, V in the [i]th bucket and putting it into an [i]th vector of shuffled result;
     // Due to consistent hashing at the Map stage, the [i]th bucket of every worker will have the same hash space. This groups all copies of the same key.
     // map_result contains, per_thread, per_bucket, keys
-    for (auto i = 0; i < map_result.size(); i++){
-        for (auto j = 0; j < shuffled_result.size(); j++){
+    for (uint i = 0; i < map_result.size(); i++){
+        for (uint j = 0; j < shuffled_result.size(); j++){
             // For the jth thread's vec, place the ith bucket into the ith shuffled_results to group keys
             shuffled_result.at(i).push_back(map_result.at(j).at(i));
         }
@@ -231,7 +231,7 @@ int wc_main(int argv, char* argc[]){
     std::sort(output_pairs.begin(), output_pairs.end(), [](std::pair<std::string, int> a, std::pair<std::string, int> b){return a.second > b.second;});
     // std::sort(output_pairs.begin(), output_pairs.end(), [](std::pair<std::string, int> a, std::pair<std::string, int> b){return (a.first).compare(b.first);});
 
-    for(const auto [key, val] : output_pairs){
+    for(const auto& [key, val] : output_pairs){
         std::cout << key << " " << val << std::endl;
     }
     std::cerr << "Time elapsed: " << (end - start).count() << std::endl;
