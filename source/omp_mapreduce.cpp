@@ -239,5 +239,5 @@ int wc_main(int argv, char* argc[]){
 }
 
 int main(int argv, char* argc[]){
-    return add_main(argv, argc);
+    return wc_main(argv, argc);
 }
